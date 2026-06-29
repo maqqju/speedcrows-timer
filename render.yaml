@@ -1,8 +1,8 @@
 services:
   - type: web
-    name: sprint-timer-api
+    name: speedcrows-timer-api
     runtime: python
-    repo: https://github.com/YOUR_USERNAME/sprint-timer  # update this
+    repo: https://github.com/maqqju/speedcrows-timer  # update this
     branch: main
     rootDir: backend
     buildCommand: pip install -r requirements.txt
