@@ -1,5 +1,0 @@
-# Bypass redirects for Cloudflare Pages Functions
-/config.js 200
-
-# Fallback everything else to index.html for SPA routing
-/* /index.html 200
