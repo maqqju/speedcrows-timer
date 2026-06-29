@@ -506,7 +506,8 @@
 <!-- <script src="/config.js"></script> -->
 <script>
 // ─── State ──────────────────────────────────────────────────────────────────
-const API = window.SPRINT_TIMER_API || 'http://localhost:8000';
+// const API = window.SPRINT_TIMER_API || 'http://localhost:8000';
+const API = window.ENV?.SPRINT_TIMER_API || 'http://localhost:8000';
 
 let state = {
   phase: 'load',     // load | gates | analyse | results
