@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: sprint-timer-api
+    runtime: python
+    repo: https://github.com/YOUR_USERNAME/sprint-timer  # update this
+    branch: main
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+    # Free tier note: service spins down after 15min inactivity.
+    # First request after sleep takes ~30s to wake. Upgrade to a paid
+    # instance type to avoid cold starts if used at training sessions.

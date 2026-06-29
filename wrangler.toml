@@ -1,0 +1,8 @@
+[build]
+  # No build step needed — pure static HTML + Pages Functions
+  command = ""
+  publish = "frontend"
+
+[build.environment]
+  # Set SPRINT_TIMER_API in the Cloudflare Pages dashboard instead,
+  # under Settings → Environment Variables. Do not hardcode it here.

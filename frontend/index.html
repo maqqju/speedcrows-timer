@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sprint Timer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=DM+Mono:wght@400;500&family=Inter:wght@400;500&display=swap');
+
+  :root {
+    --bg:        #0a0c0f;
+    --surface:   #111418;
+    --border:    #1e2229;
+    --accent:    #e8ff47;        /* electric chartreuse — timing boards, photo finish displays */
+    --accent2:   #ff6b35;        /* split highlight */
+    --text:      #e8eaed;
+    --muted:     #5a6070;
+    --gate-new:  #3dd68c;
+    --gate-hit:  #e8ff47;
+    --radius:    4px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+    display: grid;
+    grid-template-rows: auto 1fr;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .logo {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 900;
+    font-size: 22px;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+  .logo span { color: var(--text); font-weight: 400; }
+  .step-indicator {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+  }
+  .step {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 2px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    transition: all 0.2s;
+  }
+  .step.active { border-color: var(--accent); color: var(--accent); }
+  .step.done   { border-color: var(--gate-new); color: var(--gate-new); }
+
+  /* ── Main layout ── */
+  main {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    height: calc(100vh - 57px);
+    overflow: hidden;
+  }
+
+  /* ── Left: video / canvas area ── */
+  .video-panel {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    overflow: hidden;
+  }
+  .canvas-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #gateCanvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    cursor: crosshair;
+    z-index: 2;
+  }
+  #previewImg {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    z-index: 1;
+  }
+  .drop-zone {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    z-index: 3;
+    transition: background 0.2s;
+  }
+  .drop-zone.dragging { background: rgba(232,255,71,0.05); }
+  .drop-icon {
+    font-size: 48px;
+    line-height: 1;
+  }
+  .drop-label {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .drop-sub {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  #fileInput { display: none; }
+  .btn-upload {
+    margin-top: 8px;
+    padding: 10px 24px;
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-upload:hover { background: rgba(232,255,71,0.1); }
+
+  /* Progress bar */
+  .progress-bar-wrap {
+    height: 3px;
+    background: var(--border);
+    position: relative;
+    flex-shrink: 0;
+  }
+  .progress-bar-fill {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.1s linear;
+  }
+
+  /* Toolbar under canvas */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+  .toolbar-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .btn {
+    padding: 7px 16px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn:hover { border-color: var(--muted); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+  }
+  .btn-primary:hover { background: #d4e83e; border-color: #d4e83e; }
+  .btn-danger { border-color: #ff4444; color: #ff4444; }
+  .btn-danger:hover { background: rgba(255,68,68,0.1); }
+  .spacer { flex: 1; }
+
+  /* ── Right: sidebar ── */
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Sections */
+  .sidebar-section {
+    border-bottom: 1px solid var(--border);
+    padding: 14px;
+    flex-shrink: 0;
+  }
+  .section-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  /* Gate list */
+  .gate-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .gate-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 9px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--bg);
+    transition: border-color 0.2s;
+  }
+  .gate-item.crossed { border-color: var(--gate-hit); }
+  .gate-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--gate-new);
+    flex-shrink: 0;
+    transition: background 0.2s;
+  }
+  .gate-item.crossed .gate-dot { background: var(--gate-hit); }
+  .gate-name {
+    flex: 1;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 0.03em;
+  }
+  .gate-time {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .gate-item.crossed .gate-time { color: var(--gate-hit); }
+  .gate-delete {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 2px;
+    transition: color 0.15s;
+  }
+  .gate-delete:hover { color: #ff4444; }
+  .gate-hint {
+    font-size: 12px;
+    color: var(--muted);
+    font-style: italic;
+    text-align: center;
+    padding: 8px 0;
+  }
+
+  /* Results */
+  .results-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px;
+  }
+  .results-scroll::-webkit-scrollbar { width: 4px; }
+  .results-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .result-card {
+    margin-bottom: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    animation: slideIn 0.25s ease;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .result-card.highlight { border-color: var(--accent2); }
+  .result-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 10px;
+    background: var(--surface);
+  }
+  .result-gate {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  .result-cumulative {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .result-split {
+    padding: 8px 10px;
+    background: var(--bg);
+  }
+  .split-value {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 900;
+    font-size: 32px;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--accent);
+  }
+  .split-value.inter-split { color: var(--accent2); }
+  .split-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 2px;
+  }
+
+  /* Status badge */
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 2px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--muted);
+  }
+  .status-badge.processing .status-dot {
+    background: var(--accent);
+    animation: pulse 1s infinite;
+  }
+  .status-badge.done .status-dot { background: var(--gate-new); }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.3; }
+  }
+
+  /* Export button */
+  .export-row {
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .btn-sm {
+    padding: 5px 12px;
+    font-size: 12px;
+  }
+
+  /* Video name */
+  .video-name {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+  }
+
+  /* Gate label input in toolbar */
+  .gate-label-input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 14px;
+    padding: 6px 10px;
+    border-radius: var(--radius);
+    width: 110px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .gate-label-input:focus { border-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Sprint<span>Timer</span></div>
+  <div class="step-indicator">
+    <div class="step active" id="step1">01 Load</div>
+    <div class="step"        id="step2">02 Gates</div>
+    <div class="step"        id="step3">03 Analyse</div>
+    <div class="step"        id="step4">04 Results</div>
+  </div>
+</header>
+
+<main>
+  <!-- ── Left: video + canvas ── -->
+  <div class="video-panel">
+    <div class="canvas-wrap" id="canvasWrap">
+      <!-- Drop zone -->
+      <div class="drop-zone" id="dropZone">
+        <div class="drop-icon">⏱</div>
+        <div class="drop-label">Drop video here</div>
+        <div class="drop-sub">MP4, MOV, AVI — any frame rate</div>
+        <button class="btn-upload" onclick="document.getElementById('fileInput').click()">
+          Select File
+        </button>
+        <input type="file" id="fileInput" accept="video/*">
+      </div>
+
+      <!-- Live preview during analysis -->
+      <img id="previewImg" style="display:none">
+
+      <!-- Gate drawing overlay -->
+      <canvas id="gateCanvas" style="display:none"></canvas>
+    </div>
+
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" id="progressFill"></div>
+    </div>
+
+    <div class="toolbar" id="toolbar">
+      <span class="toolbar-label" id="toolbarHint">Load a video to begin</span>
+      <div id="videoNameWrap" style="display:none">
+        <span class="video-name" id="videoName"></span>
+      </div>
+      <div class="spacer"></div>
+      <div id="gateToolbar" style="display:none; display:flex; align-items:center; gap:8px;">
+        <input class="gate-label-input" id="gateLabelInput" placeholder="Gate name…" value="Gate 1">
+        <button class="btn" id="btnUndoGate" onclick="undoLastGate()" disabled>Undo</button>
+      </div>
+      <div id="analyseToolbar" style="display:none">
+        <button class="btn btn-primary" id="btnAnalyse" onclick="startAnalysis()">
+          ▶ Analyse
+        </button>
+      </div>
+      <div id="statusWrap" style="display:none">
+        <div class="status-badge processing" id="statusBadge">
+          <div class="status-dot"></div>
+          <span id="statusText">Processing…</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Right: sidebar ── -->
+  <div class="sidebar">
+    <!-- Gates section -->
+    <div class="sidebar-section">
+      <div class="section-title">Gates</div>
+      <div class="gate-list" id="gateList">
+        <div class="gate-hint" id="gateHint">Draw lines on the video to define gates</div>
+      </div>
+    </div>
+
+    <!-- Results section -->
+    <div class="results-scroll" id="resultsScroll">
+      <div class="section-title">Splits</div>
+      <div id="resultCards"></div>
+    </div>
+
+    <div class="export-row" id="exportRow" style="display:none">
+      <button class="btn btn-sm" onclick="exportCSV()">Export CSV</button>
+      <button class="btn btn-sm btn-danger" onclick="resetApp()">Reset</button>
+    </div>
+  </div>
+</main>
+
+<script src="/config.js"></script>
+<script>
+// ─── State ──────────────────────────────────────────────────────────────────
+const API = window.SPRINT_TIMER_API || 'http://localhost:8000';
+
+let state = {
+  phase: 'load',     // load | gates | analyse | results
+  videoId: null,
+  videoMeta: null,
+  gates: [],         // { id, label, x1_norm, y1_norm, x2_norm, y2_norm }
+  drawStart: null,   // { x, y } normalised
+  results: [],       // crossing events
+  ws: null,
+};
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+
+function setPhase(phase) {
+  state.phase = phase;
+  ['step1','step2','step3','step4'].forEach((s,i) => {
+    $( s).className = 'step';
+    const phaseMap = { load:0, gates:1, analyse:2, results:3 };
+    if (i < phaseMap[phase]) $(s).classList.add('done');
+    if (i === phaseMap[phase]) $(s).classList.add('active');
+  });
+}
+
+function formatTime(secs) {
+  if (secs === null || secs === undefined) return '—';
+  const s = Math.floor(secs);
+  const ms = Math.round((secs - s) * 1000);
+  return `${s}.${String(ms).padStart(3,'0')}`;
+}
+
+// ─── File upload / drag-drop ─────────────────────────────────────────────────
+const dropZone = $('dropZone');
+const fileInput = $('fileInput');
+
+dropZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropZone.classList.add('dragging');
+});
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragging'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragging');
+  const file = e.dataTransfer.files[0];
+  if (file) uploadFile(file);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) uploadFile(fileInput.files[0]);
+});
+
+async function uploadFile(file) {
+  $('toolbarHint').textContent = 'Uploading…';
+
+  const fd = new FormData();
+  fd.append('file', file);
+
+  try {
+    const res = await fetch(`${API}/upload`, { method: 'POST', body: fd });
+    const data = await res.json();
+
+    state.videoId = data.video_id;
+    state.videoMeta = data.meta;
+
+    // Show first frame via a hidden video element
+    const url = URL.createObjectURL(file);
+    showFirstFrame(url, file.name);
+
+  } catch(e) {
+    alert('Upload failed: ' + e.message);
+  }
+}
+
+function showFirstFrame(url, filename) {
+  const vid = document.createElement('video');
+  vid.src = url;
+  vid.muted = true;
+  vid.addEventListener('loadeddata', () => {
+    vid.currentTime = 0.5;
+  });
+  vid.addEventListener('seeked', () => {
+    const cvs = document.createElement('canvas');
+    cvs.width = vid.videoWidth;
+    cvs.height = vid.videoHeight;
+    cvs.getContext('2d').drawImage(vid, 0, 0);
+    $('previewImg').src = cvs.toDataURL('image/jpeg');
+    $('previewImg').style.display = '';
+    $('dropZone').style.display = 'none';
+    $('gateCanvas').style.display = '';
+
+    $('videoName').textContent = filename;
+    $('videoNameWrap').style.display = '';
+    $('gateToolbar').style.display = 'flex';
+    $('toolbarHint').textContent = 'Click and drag to draw gate lines';
+
+    initGateCanvas();
+    setPhase('gates');
+  });
+  document.body.appendChild(vid);
+}
+
+// ─── Gate drawing ────────────────────────────────────────────────────────────
+const gateCanvas = $('gateCanvas');
+const gateCtx = gateCanvas.getContext('2d');
+
+function initGateCanvas() {
+  resizeGateCanvas();
+  window.addEventListener('resize', resizeGateCanvas);
+
+  gateCanvas.addEventListener('mousedown', onDrawStart);
+  gateCanvas.addEventListener('mousemove', onDrawMove);
+  gateCanvas.addEventListener('mouseup', onDrawEnd);
+
+  // Touch
+  gateCanvas.addEventListener('touchstart', e => onDrawStart(e.touches[0]));
+  gateCanvas.addEventListener('touchmove',  e => { e.preventDefault(); onDrawMove(e.touches[0]); }, { passive: false });
+  gateCanvas.addEventListener('touchend',   e => onDrawEnd(e.changedTouches[0]));
+}
+
+function resizeGateCanvas() {
+  const wrap = $('canvasWrap');
+  gateCanvas.width  = wrap.clientWidth;
+  gateCanvas.height = wrap.clientHeight;
+  redrawGates();
+}
+
+function normCoords(e) {
+  const rect = gateCanvas.getBoundingClientRect();
+  return {
+    x: (e.clientX - rect.left)  / rect.width,
+    y: (e.clientY - rect.top)   / rect.height,
+  };
+}
+
+function onDrawStart(e) {
+  if (state.phase !== 'gates') return;
+  state.drawStart = normCoords(e);
+}
+function onDrawMove(e) {
+  if (!state.drawStart) return;
+  const cur = normCoords(e);
+  redrawGates();
+  drawLine(state.drawStart, cur, '#e8ff47', 0.6);
+}
+function onDrawEnd(e) {
+  if (!state.drawStart) return;
+  const end = normCoords(e);
+  const start = state.drawStart;
+  state.drawStart = null;
+
+  const dx = Math.abs(end.x - start.x);
+  const dy = Math.abs(end.y - start.y);
+  if (Math.sqrt(dx*dx + dy*dy) < 0.02) return; // too short, ignore
+
+  const label = $('gateLabelInput').value.trim() || `Gate ${state.gates.length + 1}`;
+
+  state.gates.push({
+    id: 'g' + Date.now(),
+    label,
+    x1_norm: start.x, y1_norm: start.y,
+    x2_norm: end.x,   y2_norm: end.y,
+    crossed: false,
+  });
+
+  // Auto-increment gate name
+  const match = label.match(/^(.*?)(\d+)$/);
+  if (match) $('gateLabelInput').value = match[1] + (parseInt(match[2]) + 1);
+
+  $('btnUndoGate').disabled = false;
+  renderGateList();
+  redrawGates();
+  updateAnalyseButton();
+}
+
+function drawLine(a, b, color, alpha = 1) {
+  const W = gateCanvas.width, H = gateCanvas.height;
+  gateCtx.save();
+  gateCtx.globalAlpha = alpha;
+  gateCtx.strokeStyle = color;
+  gateCtx.lineWidth = 2;
+  gateCtx.setLineDash([6, 3]);
+  gateCtx.beginPath();
+  gateCtx.moveTo(a.x * W, a.y * H);
+  gateCtx.lineTo(b.x * W, b.y * H);
+  gateCtx.stroke();
+  gateCtx.restore();
+}
+
+function redrawGates() {
+  gateCtx.clearRect(0, 0, gateCanvas.width, gateCanvas.height);
+  const W = gateCanvas.width, H = gateCanvas.height;
+
+  state.gates.forEach(g => {
+    const color = g.crossed ? '#e8ff47' : '#3dd68c';
+    gateCtx.save();
+    gateCtx.strokeStyle = color;
+    gateCtx.lineWidth = 2;
+    gateCtx.setLineDash([6, 3]);
+    gateCtx.beginPath();
+    gateCtx.moveTo(g.x1_norm * W, g.y1_norm * H);
+    gateCtx.lineTo(g.x2_norm * W, g.y2_norm * H);
+    gateCtx.stroke();
+
+    // Label
+    gateCtx.setLineDash([]);
+    gateCtx.fillStyle = color;
+    gateCtx.font = 'bold 12px "Barlow Condensed", sans-serif';
+    gateCtx.fillText(g.label, g.x1_norm * W + 4, g.y1_norm * H - 6);
+    gateCtx.restore();
+  });
+}
+
+function undoLastGate() {
+  state.gates.pop();
+  $('btnUndoGate').disabled = state.gates.length === 0;
+  renderGateList();
+  redrawGates();
+  updateAnalyseButton();
+}
+
+function renderGateList() {
+  const list = $('gateList');
+  if (state.gates.length === 0) {
+    list.innerHTML = '<div class="gate-hint" id="gateHint">Draw lines on the video to define gates</div>';
+    return;
+  }
+  list.innerHTML = state.gates.map(g => `
+    <div class="gate-item${g.crossed ? ' crossed' : ''}" id="gate-${g.id}">
+      <div class="gate-dot"></div>
+      <div class="gate-name">${g.label}</div>
+      <div class="gate-time">${g.crossed ? formatTime(g.split_time) : '—'}</div>
+      ${state.phase === 'gates' ? `<button class="gate-delete" onclick="deleteGate('${g.id}')">×</button>` : ''}
+    </div>
+  `).join('');
+}
+
+function deleteGate(id) {
+  state.gates = state.gates.filter(g => g.id !== id);
+  renderGateList();
+  redrawGates();
+  updateAnalyseButton();
+}
+
+function updateAnalyseButton() {
+  const show = state.gates.length >= 1;
+  $('analyseToolbar').style.display = show ? '' : 'none';
+}
+
+// ─── Analysis ────────────────────────────────────────────────────────────────
+async function startAnalysis() {
+  if (!state.videoId || state.gates.length === 0) return;
+
+  setPhase('analyse');
+  $('gateToolbar').style.display = 'none';
+  $('analyseToolbar').style.display = 'none';
+  $('statusWrap').style.display = '';
+  $('toolbarHint').style.display = 'none';
+
+  // Kick off backend processing
+  await fetch(`${API}/analyse/${state.videoId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ gates: state.gates }),
+  });
+
+  // Open WebSocket for streaming updates
+  const ws = new WebSocket(`${API.replace('http','ws')}/ws/${state.videoId}`);
+  state.ws = ws;
+
+  ws.onmessage = ({ data }) => {
+    const msg = JSON.parse(data);
+    handleWsMessage(msg);
+  };
+
+  ws.onerror = () => {
+    $('statusText').textContent = 'Connection error';
+  };
+}
+
+function handleWsMessage(msg) {
+  if (msg.type === 'frame') {
+    // Update preview thumbnail
+    $('previewImg').src = 'data:image/jpeg;base64,' + msg.thumb;
+
+    // Progress bar
+    $('progressFill').style.width = (msg.progress * 100) + '%';
+    $('statusText').textContent = `Processing… ${Math.round(msg.progress * 100)}%`;
+
+    // New crossings
+    if (msg.new_crossings && msg.new_crossings.length) {
+      msg.new_crossings.forEach(crossing => {
+        const gate = state.gates.find(g => g.id === crossing.gate_id);
+        if (gate) {
+          gate.crossed = true;
+          gate.split_time = crossing.split_time;
+        }
+        addResultCard(crossing, state.results.length === 0);
+        state.results.push(crossing);
+      });
+      renderGateList();
+      redrawGates();
+    }
+  }
+
+  if (msg.type === 'done') {
+    $('progressFill').style.width = '100%';
+    const badge = $('statusBadge');
+    badge.className = 'status-badge done';
+    $('statusText').textContent = 'Complete';
+    $('exportRow').style.display = '';
+    setPhase('results');
+  }
+
+  if (msg.type === 'error') {
+    $('statusText').textContent = 'Error: ' + msg.message;
+  }
+}
+
+function addResultCard(crossing, isFirst) {
+  const cards = $('resultCards');
+  const prevResult = state.results[state.results.length - 1];
+  const interSplit = prevResult
+    ? crossing.split_time - prevResult.split_time
+    : null;
+
+  const card = document.createElement('div');
+  card.className = 'result-card' + (isFirst ? '' : ' highlight');
+  card.id = 'card-' + crossing.gate_id;
+  card.innerHTML = `
+    <div class="result-header">
+      <span class="result-gate">${crossing.gate_label}</span>
+      <span class="result-cumulative">${formatTime(crossing.split_time)} total</span>
+    </div>
+    <div class="result-split">
+      ${interSplit !== null
+        ? `<div class="split-value inter-split">${formatTime(interSplit)}</div>
+           <div class="split-label">Split from previous</div>`
+        : `<div class="split-value">${formatTime(crossing.split_time)}</div>
+           <div class="split-label">From start</div>`
+      }
+    </div>
+  `;
+  cards.appendChild(card);
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ─── Export ──────────────────────────────────────────────────────────────────
+function exportCSV() {
+  const rows = [['Gate', 'Cumulative (s)', 'Split (s)']];
+  state.results.forEach((r, i) => {
+    const split = i > 0 ? (r.split_time - state.results[i-1].split_time).toFixed(4) : '0.0000';
+    rows.push([r.gate_label, r.split_time.toFixed(4), split]);
+  });
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'sprint_splits.csv';
+  a.click();
+}
+
+// ─── Reset ───────────────────────────────────────────────────────────────────
+async function resetApp() {
+  if (state.videoId) {
+    fetch(`${API}/video/${state.videoId}`, { method: 'DELETE' }).catch(() => {});
+  }
+  if (state.ws) state.ws.close();
+
+  state = { phase: 'load', videoId: null, videoMeta: null, gates: [], drawStart: null, results: [], ws: null };
+
+  $('dropZone').style.display = '';
+  $('previewImg').style.display = 'none';
+  $('gateCanvas').style.display = 'none';
+  $('videoNameWrap').style.display = 'none';
+  $('gateToolbar').style.display = 'none';
+  $('analyseToolbar').style.display = 'none';
+  $('statusWrap').style.display = 'none';
+  $('exportRow').style.display = 'none';
+  $('resultCards').innerHTML = '';
+  $('progressFill').style.width = '0%';
+  $('toolbarHint').style.display = '';
+  $('toolbarHint').textContent = 'Load a video to begin';
+  $('gateLabelInput').value = 'Gate 1';
+  $('btnUndoGate').disabled = true;
+  renderGateList();
+  setPhase('load');
+}
+</script>
+</body>
+</html>

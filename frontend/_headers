@@ -1,0 +1,9 @@
+# Applied to all routes
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+# config.js must never be cached — it carries the live API URL
+/config.js
+  Cache-Control: no-store
