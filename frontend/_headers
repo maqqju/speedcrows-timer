@@ -4,6 +4,8 @@
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
 
-# config.js must never be cached — it carries the live API URL
-/config.js
-  Cache-Control: no-store
+# Bypass redirects for Cloudflare Pages Functions
+/config.js - 200
+
+# Fallback everything else to index.html for SPA routing
+/* /index.html 200
